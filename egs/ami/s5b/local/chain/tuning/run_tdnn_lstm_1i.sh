@@ -26,6 +26,7 @@ gmm=tri3_cleaned  # the gmm for the target data
 ihm_gmm=tri3  # the gmm for the IHM system (if --use-ihm-ali true).
 num_threads_ubm=32
 nnet3_affix=_cleaned  # cleanup affix for nnet3 and chain dirs, e.g. _cleaned
+num_epochs=4
 
 chunk_width=150
 chunk_left_context=40
@@ -173,7 +174,7 @@ if [ $stage -le 15 ]; then
   echo "$0: creating neural net configs using the xconfig parser";
 
   num_targets=$(tree-info $tree_dir/tree |grep num-pdfs|awk '{print $2}')
-  learning_rate_factor=$(echo "print 0.5/$xent_regularize" | python)
+  learning_rate_factor=$(echo "print (0.5/$xent_regularize)" | python)
 
   mkdir -p $dir/configs
   cat <<EOF > $dir/configs/network.xconfig
@@ -242,7 +243,7 @@ if [ $stage -le 16 ]; then
     --egs.chunk-right-context $chunk_right_context \
     --trainer.num-chunk-per-minibatch 64 \
     --trainer.frames-per-iter 1500000 \
-    --trainer.num-epochs 4 \
+    --trainer.num-epochs $num_epochs \
     --trainer.optimization.shrink-value 0.99 \
     --trainer.optimization.num-jobs-initial 2 \
     --trainer.optimization.num-jobs-final 12 \

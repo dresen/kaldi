@@ -3,14 +3,14 @@
 # Copyright 2016  Xiaohui Zhang
 # Apache 2.0
 
-# Begin configuration section.  
+# Begin configuration section.
 iters=5
 stage=0
 encoding='utf-8'
 only_words=true
 cmd=run.pl
 # a list of silence phones, like data/local/dict/silence_phones.txt
-silence_phones= 
+silence_phones=
 # End configuration section.
 
 echo "$0 $@"  # Print the command line for logging
@@ -24,13 +24,18 @@ set -e
 if [ $# != 2 ]; then
    echo "Usage: $0 [options] <lexicon-in> <work-dir>"
    echo "    where <lexicon-in> is the training lexicon (one pronunciation per "
-   echo "    word per line) and <word-dir> is directory where the models will "
-   echo "    be stored"
-   echo "e.g.: train_g2p.sh data/local/lexicon.txt exp/g2p/"
+   echo "    word per line, with lines like 'hello h uh l ow') and"
+   echo "    <work-dir> is directory where the models will be stored"
+   echo "e.g.: train_g2p.sh --silence-phones data/local/dict/silence_phones.txt data/local/dict/lexicon.txt exp/g2p/"
    echo ""
    echo "main options (for others, see top of script file)"
    echo "  --iters <int>                                    # How many iterations. Relates to N-ngram order"
    echo "  --cmd (utils/run.pl|utils/queue.pl <queue opts>) # how to run jobs."
+   echo "  --silence-phones <silphones-list>                # e.g. data/local/dict/silence_phones.txt."
+   echo "                                                   # A list of silence phones, one or more per line"
+   echo "                                                   # Relates to  --only-words option"
+   echo "  --only-words (true|false)    (default: true)     # If true, exclude silence words, i.e."
+   echo "                                                   # words with 1 phone which is a silence."
    exit 1;
 fi
 
@@ -43,9 +48,10 @@ mkdir -p $wdir/log
 [ ! -f $lexicon ] && echo "$0: Training lexicon does not exist." && exit 1
 
 # Optionally remove words that are mapped to a single silence phone from the lexicon.
-if $only_words && [ -z $silence_phones ]; then
-  awk 'NR==FNR{a[$1] = 1; next} {s=$2;for(i=3;i<=NF;i++) s=s" "$i;a[$1]=s;if(!(s in a)) print $1" "s}' \
-    $silence_phones > $wdir/lexicon_onlywords.txt
+if $only_words && [ ! -z "$silence_phones" ]; then
+  awk -v s=$silence_phones \
+    'BEGIN{while((getline<s)>0) {for(i=1;i<=NF;i++) sil[$i]=1;}}
+    {if (!(NF == 2 && $2 in sil)) print;}' $lexicon > $wdir/lexicon_onlywords.txt
   lexicon=$wdir/lexicon_onlywords.txt
 fi
 
@@ -63,7 +69,7 @@ if [ $stage -le 0 ]; then
 fi
 
 for i in `seq 0 $(($iters-2))`; do
-  
+
   echo "Training the G2P model (iter $[$i + 1] )"
 
   if [ $stage -le $i ]; then
@@ -80,4 +86,3 @@ if [ $stage -le $(($i + 2)) ]; then
   $cmd $wdir/log/test.log \
     g2p.py --encoding $encoding --model $wdir/g2p.model.final --test $lexicon
 fi
-

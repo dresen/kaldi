@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 # Copyright 2016   Vimal Manohar
 #           2016   Johns Hopkins University (author: Daniel Povey)
@@ -7,6 +7,10 @@
 from __future__ import print_function
 import sys, operator, argparse, os
 from collections import defaultdict
+
+import io
+sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf8")
+
 
 # This script reads and writes the 'ctm-edits' file that is
 # produced by get_ctm_edits.py.
@@ -53,6 +57,9 @@ parser = argparse.ArgumentParser(
 parser.add_argument("--verbose", type = int, default = 1,
                     choices=[0,1,2,3],
                     help = "Verbose level, higher = more verbose output")
+parser.add_argument("--remove-deletions", type=str, default="true",
+                    choices=["true", "false"],
+                    help = "Remove deletions next to taintable lines")
 parser.add_argument("ctm_edits_in", metavar = "<ctm-edits-in>",
                     help = "Filename of input ctm-edits file. "
                     "Use /dev/stdin for standard input.")
@@ -61,6 +68,7 @@ parser.add_argument("ctm_edits_out", metavar = "<ctm-edits-out>",
                     "Use /dev/stdout for standard output.")
 
 args = parser.parse_args()
+args.remove_deletions = bool(args.remove_deletions == "true")
 
 
 
@@ -70,7 +78,7 @@ args = parser.parse_args()
 # sequence of fields.  Returns the same format of data after processing to add
 # the 'tainted' field.  Note: this function is destructive of its input; the
 # input will not have the same value afterwards.
-def ProcessUtterance(split_lines_of_utt):
+def ProcessUtterance(split_lines_of_utt, remove_deletions=True):
     global num_lines_of_type, num_tainted_lines, \
            num_del_lines_giving_taint, num_sub_lines_giving_taint, \
            num_ins_lines_giving_taint
@@ -114,7 +122,8 @@ def ProcessUtterance(split_lines_of_utt):
                 j += 1
             if tainted_an_adjacent_line:
                 if edit_type == 'del':
-                    split_lines_of_utt[i][7] = 'remove-this-line'
+                    if remove_deletions:
+                        split_lines_of_utt[i][7] = 'remove-this-line'
                     num_del_lines_giving_taint += 1
                 elif edit_type == 'sub':
                     num_sub_lines_giving_taint += 1
@@ -123,19 +132,20 @@ def ProcessUtterance(split_lines_of_utt):
 
     new_split_lines_of_utt = []
     for i in range(len(split_lines_of_utt)):
-        if split_lines_of_utt[i][7] != 'remove-this-line':
+        if (not remove_deletions
+                or split_lines_of_utt[i][7] != 'remove-this-line'):
             new_split_lines_of_utt.append(split_lines_of_utt[i])
     return new_split_lines_of_utt
 
 
 def ProcessData():
     try:
-        f_in = open(args.ctm_edits_in)
+        f_in = open(args.ctm_edits_in, encoding="utf8")
     except:
         sys.exit("taint_ctm_edits.py: error opening ctm-edits input "
                  "file {0}".format(args.ctm_edits_in))
     try:
-        f_out = open(args.ctm_edits_out, 'w')
+        f_out = open(args.ctm_edits_out, 'w', encoding="utf8")
     except:
         sys.exit("taint_ctm_edits.py: error opening ctm-edits output "
                  "file {0}".format(args.ctm_edits_out))
@@ -156,7 +166,8 @@ def ProcessData():
 
     while True:
         if len(split_pending_line) == 0 or split_pending_line[0] != cur_utterance:
-            split_lines_of_cur_utterance = ProcessUtterance(split_lines_of_cur_utterance)
+            split_lines_of_cur_utterance = ProcessUtterance(
+                split_lines_of_cur_utterance, args.remove_deletions)
             for split_line in split_lines_of_cur_utterance:
                 print(' '.join(split_line), file = f_out)
             split_lines_of_cur_utterance = []
@@ -194,7 +205,7 @@ def PrintNonScoredStats():
             percent_modified, percent_of_incorrect_modified),
           file = sys.stderr)
 
-    keys = sorted(ref_change_stats.keys(), reverse=True,
+    keys = sorted(list(ref_change_stats.keys()), reverse=True,
                   key = lambda x: ref_change_stats[x])
     num_keys_to_print = 40 if args.verbose >= 2 else 10
 
@@ -212,7 +223,7 @@ def PrintStats():
         return
     print("taint_ctm_edits.py: processed {0} input lines, whose edit-types were: ".format(tot_lines) +
           ', '.join([ '%s = %.2f%%' % (k, num_lines_of_type[k] * 100.0 / tot_lines)
-                      for k in sorted(num_lines_of_type.keys(), reverse = True,
+                      for k in sorted(list(num_lines_of_type.keys()), reverse = True,
                                       key = lambda k: num_lines_of_type[k])  ]),
           file = sys.stderr)
 
@@ -239,4 +250,3 @@ num_ins_lines_giving_taint = 0
 
 ProcessData()
 PrintStats()
-

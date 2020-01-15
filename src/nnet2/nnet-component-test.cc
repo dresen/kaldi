@@ -605,7 +605,7 @@ void UnitTestSumGroupComponent() {
 
 
 void UnitTestDctComponent() {
-  int32 m = 1 + Rand() % 4, n = 1 + Rand() % 4,
+  int32 m = 3 + Rand() % 4, n = 3 + Rand() % 4,
   dct_dim = m, dim = m * n;
   bool reorder = (Rand() % 2 == 0);
   {
@@ -615,12 +615,6 @@ void UnitTestDctComponent() {
   }
   {
     const char *str = "dim=10 dct-dim=5 reorder=true";
-    DctComponent component;
-    component.InitFromString(str);
-    UnitTestGenericComponentInternal(component);
-  }
-  {
-    const char *str = "dim=10 dct-dim=5 reorder=true dct-keep-dim=1";
     DctComponent component;
     component.InitFromString(str);
     UnitTestGenericComponentInternal(component);
@@ -856,9 +850,9 @@ int main() {
   using namespace kaldi;
   using namespace kaldi::nnet2;
 
-
-  for (int32 loop = 0; loop < 2; loop++) {
+  int32 loop = 0;
 #if HAVE_CUDA == 1
+  for (loop = 0; loop < 2; loop++) {
     //// Uncomment the following line to expose the bug in UnitTestDropoutComponent
     //CuDevice::Instantiate().SetDebugStrideMode(true);
     if (loop == 0)
@@ -868,7 +862,9 @@ int main() {
 #endif
 
     BasicDebugTestForSpliceMax(true);
-    for (int32 i = 0; i < 3; i++) {
+    // We used to test this 3 times, but now that nnet2 is rarely changed,
+    // reducing it to once.
+    for (int32 i = 0; i < 1; i++) {
       UnitTestGenericComponent<SigmoidComponent>();
       UnitTestGenericComponent<TanhComponent>();
       UnitTestGenericComponent<PowerComponent>("power=1.5");
@@ -905,8 +901,8 @@ int main() {
       else
         KALDI_LOG << "Tests with GPU use (if available) succeeded.";
     }
-  }
 #if HAVE_CUDA == 1
+  } // No for loop if 'HAVE_CUDA != 1',
   CuDevice::Instantiate().PrintProfile();
 #endif
   return 0;

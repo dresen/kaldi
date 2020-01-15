@@ -25,7 +25,8 @@
 #include "fstext/fstext-lib.h"
 #include "hmm/transition-model.h"
 #include "nnet3/nnet-am-decodable-simple.h"
-#include "thread/kaldi-task-sequence.h"
+#include "nnet3/nnet-utils.h"
+#include "util/kaldi-thread.h"
 #include "tree/context-dep.h"
 #include "util/common-utils.h"
 
@@ -40,13 +41,15 @@ int main(int argc, char *argv[]) {
     using namespace kaldi::nnet3;
     typedef kaldi::int32 int32;
     using fst::SymbolTable;
-    using fst::VectorFst;
+    using fst::Fst;
     using fst::StdArc;
 
     const char *usage =
-        "Generate lattices using nnet3 neural net model.\n"
+        "Generate lattices using nnet3 neural net model.  This version supports\n"
+        "multiple decoding threads (using a shared decoding graph.)\n"
         "Usage: nnet3-latgen-faster-parallel [options] <nnet-in> <fst-in|fsts-rspecifier> <features-rspecifier>"
-        " <lattice-wspecifier> [ <words-wspecifier> [<alignments-wspecifier>] ]\n";
+        " <lattice-wspecifier> [ <words-wspecifier> [<alignments-wspecifier>] ]\n"
+        "See also: nnet3-latgen-faster-batch (which supports GPUs)\n";
     ParseOptions po(usage);
 
     Timer timer;
@@ -99,6 +102,9 @@ int main(int argc, char *argv[]) {
       Input ki(model_in_filename, &binary);
       trans_model.Read(ki.Stream(), binary);
       am_nnet.Read(ki.Stream(), binary);
+      SetBatchnormTestMode(true, &(am_nnet.GetNnet()));
+      SetDropoutTestMode(true, &(am_nnet.GetNnet()));
+      CollapseModel(CollapseModelConfig(), &(am_nnet.GetNnet()));
     }
 
     bool determinize = config.determinize_lattice;
@@ -131,12 +137,10 @@ int main(int argc, char *argv[]) {
       SequentialBaseFloatMatrixReader feature_reader(feature_rspecifier);
 
       // Input FST is just one FST, not a table of FSTs.
-      VectorFst<StdArc> *decode_fst = fst::ReadFstKaldi(fst_in_str);
+      Fst<StdArc> *decode_fst = fst::ReadFstKaldiGeneric(fst_in_str);
       timer.Reset();
 
       {
-        LatticeFasterDecoder decoder(*decode_fst, config);
-
         for (; !feature_reader.Done(); feature_reader.Next()) {
           std::string utt = feature_reader.Key();
           const Matrix<BaseFloat> &features (feature_reader.Value());

@@ -118,7 +118,7 @@ if [ $stage -le 1 ]; then
      $line1 =~ m/# (.+)\.sph/ || die "Bad first line $line1 in file $file";
      $call_id eq $1 || die "Mismatch call-id $call_id vs $1\n";
      while (<I>) {
-       if (m/([0-9.]+)\s+([0-9.]+) ([AB]):\s*(\S.+\S|\S)\s*$/) {
+       if (m/([0-9.]+)\s+([0-9.]+) ([AB]):\s*(\S.*\S|\S)\s*$/) {
          $start = sprintf("%06d", $1 * 100.0);
          $end = sprintf("%06d", $2 * 100.0);
          length($end) > 6 && die "Time too long $end in file $file";
@@ -156,7 +156,7 @@ fi
 if [ $stage -le 3 ]; then
   for f in `cat $tmpdir/sph.flist`; do
     # convert to absolute path
-    readlink -e $f
+    utils/make_absolute.sh $f
   done > $tmpdir/sph_abs.flist
   
   cat $tmpdir/sph_abs.flist | perl -ane 'm:/([^/]+)\.sph$: || die "bad line $_; ";  print "$1 $_"; ' > $tmpdir/sph.scp

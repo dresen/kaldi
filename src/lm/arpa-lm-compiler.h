@@ -31,7 +31,7 @@ class ArpaLmCompilerImplInterface;
 
 class ArpaLmCompiler : public ArpaFileParser {
  public:
-  ArpaLmCompiler(ArpaParseOptions options, int sub_eps,
+  ArpaLmCompiler(const ArpaParseOptions& options, int sub_eps,
                  fst::SymbolTable* symbols)
       : ArpaFileParser(options, symbols),
         sub_eps_(sub_eps), impl_(NULL) {
@@ -52,6 +52,7 @@ class ArpaLmCompiler : public ArpaFileParser {
   // this function removes states that only have a backoff arc coming
   // out of them.
   void RemoveRedundantStates();
+  void Check() const;
 
   int sub_eps_;
   ArpaLmCompilerImplInterface* impl_;  // Owned.

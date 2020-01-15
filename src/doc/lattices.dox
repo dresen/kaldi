@@ -264,8 +264,10 @@ has the same effect as calling that the normal OpenFst RemoveEps() and Determini
 
  \section lattices_generation Lattice generation
 
-Currently, the only decoder that generates lattices is the class
-LatticeSimpleDecoder, defined in decoder/lattice-simple-decoder.h, and invoked by gmm-latgen-simple.cc.
+Command-line decoding programs that have 'latgen' in their names generate lattices.
+Currently most of these use LatticeFasterDecoder.  For purposes of exposition we will
+focus instead on LatticeSimpleDecoder, whose operation is simpler.
+This is defined in decoder/lattice-simple-decoder.h, and invoked by gmm-latgen-simple.cc.
 As the name suggests, LatticeSimpleDecoder is a lattice-generating decoder that is modified from SimpleDecoder.
 SimpleDecoder is a straightforwardly implemented Viterbi beam search algorithm with only a single
 tunable parameter: the pruning beam (see \ref decoders_simple).  LatticeSimpleDecoder has
@@ -357,7 +359,7 @@ lattice-determinize program, before storing the lattices on disk for an extended
 Let's assume instead that we're outputting
 the determinized lattice (the second option).  The determinized lattice is supposed to have only one
 path through it for every word sequence that is allowed in the original raw
-lattice.  We can acheive this by creating a CompactLattice, removing epsilons and
+lattice.  We can achieve this by creating a CompactLattice, removing epsilons and
 determinizing, but this would be very inefficient.  Instead, we run a special
 determinization algorithm called \ref fst::DeterminizeLattice()
 "DeterminizeLattice()".  This algorithm does epsilon removal and
@@ -474,10 +476,13 @@ programs.
 \verbatim
  lattice-lmrescore --lm-scale=1.0 ark:nolm.lats G_new.fst ark:out.lats
 \endverbatim
-Note that there are other ways to do this; see
+Note: the above examples are slightly simplified; actually you would have
+to "project" the G.fst FST's on the output to remove disambiguation symbols
+using `fstproject` with `--project_output=true`, see steps/lmrescore.sh for examples.
+Also there are other ways to do this; see
 the documentation for lattice-compose below.
 What the program \ref lattice-lmrescore.cc "lattice-lmrescore" does is this...
-actually, we will first first escribe the simple version that is not exactly what
+actually, we will first first describe the simple version that is not exactly what
 happens.  Suppose that we are given an LM-scale S and a LM G.fst.
 We first multiply all the costs in G.fst by S.  Then for each lattice,
 we compose it on the right with G, lattice-determinize it (to keep only the
@@ -803,7 +808,7 @@ or:
 \verbatim
   lattice-to-nbest --acoustic-scale=0.1 --n=10 ark:1.lats ark:1.nbest
 \endverbatim
- then the archive 1.nbest will contain lattices for uttA-1, uttA-2, ... uttA-2,
+ then the archive 1.nbest will contain lattices for uttA-1, uttA-2, ... uttA-10,
  for uttB-1 ... uttB-10, and so on.  Of course some of the utterances may not
  have that many N-best entries if the lattice did not contain that many distinct
  word sequences.  The program lattice-to-nbest needs the acoustic scale as this

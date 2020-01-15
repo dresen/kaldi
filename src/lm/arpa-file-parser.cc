@@ -29,7 +29,7 @@
 
 namespace kaldi {
 
-ArpaFileParser::ArpaFileParser(ArpaParseOptions options,
+ArpaFileParser::ArpaFileParser(const ArpaParseOptions& options,
                                fst::SymbolTable* symbols)
     : options_(options), symbols_(symbols),
       line_number_(0), warning_count_(0) {
@@ -42,11 +42,7 @@ void TrimTrailingWhitespace(std::string *str) {
   str->erase(str->find_last_not_of(" \n\r\t") + 1);
 }
 
-void ArpaFileParser::Read(std::istream &is, bool binary) {
-  if (binary) {
-    KALDI_ERR << "binary-mode reading is not implemented for ArpaFileParser";
-  }
-
+void ArpaFileParser::Read(std::istream &is) {
   // Argument sanity checks.
   if (options_.bos_symbol <= 0 || options_.eos_symbol <= 0 ||
       options_.bos_symbol == options_.eos_symbol)
@@ -78,7 +74,7 @@ void ArpaFileParser::Read(std::istream &is, bool binary) {
   warning_count_ = 0;
   current_line_.clear();
 
-#define PARSE_ERR (KALDI_ERR << LineReference() << ": ")
+#define PARSE_ERR KALDI_ERR << LineReference() << ": "
 
   // Give derived class an opportunity to prepare its state.
   ReadStarted();
@@ -86,7 +82,9 @@ void ArpaFileParser::Read(std::istream &is, bool binary) {
   // Processes "\data\" section.
   bool keyword_found = false;
   while (++line_number_, getline(is, current_line_) && !is.eof()) {
-    if (current_line_.empty()) continue;
+    if (current_line_.find_first_not_of(" \t\n\r") == std::string::npos) {
+      continue;
+    }
 
     TrimTrailingWhitespace(&current_line_);
 
@@ -152,7 +150,9 @@ void ArpaFileParser::Read(std::istream &is, bool binary) {
 
     int32 ngram_count = 0;
     while (++line_number_, getline(is, current_line_) && !is.eof()) {
-      if (current_line_.empty()) continue;
+      if (current_line_.find_first_not_of(" \n\t\r") == std::string::npos) {
+        continue;
+      }
       if (current_line_[0] == '\\') {
         TrimTrailingWhitespace(&current_line_);
         std::ostringstream next_keyword;
@@ -167,7 +167,7 @@ void ArpaFileParser::Read(std::istream &is, bool binary) {
                 warning_count_ > static_cast<uint32>(options_.max_warnings)) {
               KALDI_WARN << "Of " << warning_count_ << " parse warnings, "
                          << options_.max_warnings << " were reported. "
-                         << "Run program with --max_warnings=-1 "
+                         << "Run program with --max-arpa-warnings=-1 "
                          << "to see all warnings";
             }
           }
@@ -209,7 +209,7 @@ void ArpaFileParser::Read(std::istream &is, bool binary) {
             word = symbols_->AddSymbol(col[1 + index]);
           } else {
             word = symbols_->Find(col[1 + index]);
-            if (word == fst::SymbolTable::kNoSymbol) {
+            if (word == -1) { // fst::kNoSymbol
               switch (options_.oov_handling) {
                 case ArpaParseOptions::kReplaceWithUnk:
                   word = options_.unk_symbol;
@@ -261,20 +261,21 @@ void ArpaFileParser::Read(std::istream &is, bool binary) {
                << "--max_warnings=-1 to see all warnings";
   }
 
-  current_line_.empty();
+  current_line_.clear();
   ReadComplete();
 
 #undef PARSE_ERR
 }
 
 std::string ArpaFileParser::LineReference() const {
-  std::stringstream ss;
+  std::ostringstream ss;
   ss << "line " << line_number_ << " [" << current_line_ << "]";
   return ss.str();
 }
 
 bool ArpaFileParser::ShouldWarn() {
-  return ++warning_count_ <= static_cast<uint32>(options_.max_warnings);
+  return (warning_count_ != -1) &&
+    (++warning_count_ <= static_cast<uint32>(options_.max_warnings));
 }
 
 }  // namespace kaldi

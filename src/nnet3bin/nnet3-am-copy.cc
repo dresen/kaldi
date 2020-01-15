@@ -47,10 +47,10 @@ int main(int argc, char *argv[]) {
     bool binary_write = true,
         raw = false;
     BaseFloat learning_rate = -1;
-    BaseFloat learning_rate_scale = 1;
     std::string set_raw_nnet = "";
     bool convert_repeated_to_block = false;
     BaseFloat scale = 1.0;
+    bool prepare_for_test = false;
     std::string nnet_config, edits_config, edits_str;
 
     ParseOptions po(usage);
@@ -80,12 +80,13 @@ int main(int argc, char *argv[]) {
     po.Register("learning-rate", &learning_rate,
                 "If supplied, all the learning rates of updatable components"
                 " are set to this value.");
-    po.Register("learning-rate-scale", &learning_rate_scale,
-                "Scales the learning rate of updatable components by this "
-                "factor");
     po.Register("scale", &scale, "The parameter matrices are scaled"
                 " by the specified value.");
-
+    po.Register("prepare-for-test", &prepare_for_test,
+                "If true, prepares the model for test time (may reduce model size "
+                "slightly.  Involves setting test mode in dropout and batch-norm "
+                "components, and calling CollapseModel() which may remove some "
+                "components.");
 
     po.Read(argc, argv);
 
@@ -115,7 +116,6 @@ int main(int argc, char *argv[]) {
     if (!nnet_config.empty()) {
       Input ki(nnet_config);
       am_nnet.GetNnet().ReadConfig(ki.Stream());
-      am_nnet.SetContext();
     }
 
     if(convert_repeated_to_block)
@@ -123,11 +123,6 @@ int main(int argc, char *argv[]) {
 
     if (learning_rate >= 0)
       SetLearningRate(learning_rate, &(am_nnet.GetNnet()));
-
-    KALDI_ASSERT(learning_rate_scale >= 0.0);
-
-    if (learning_rate_scale != 1.0)
-      ScaleLearningRate(learning_rate_scale, &(am_nnet.GetNnet()));
 
     if (!edits_config.empty()) {
       Input ki(edits_config);
@@ -141,8 +136,17 @@ int main(int argc, char *argv[]) {
       ReadEditConfig(is, &(am_nnet.GetNnet()));
     }
 
+    am_nnet.SetContext();  // in case we used the config or edits-config or
+                           // edits options
+
     if (scale != 1.0)
       ScaleNnet(scale, &(am_nnet.GetNnet()));
+
+    if (prepare_for_test) {
+      SetBatchnormTestMode(true, &am_nnet.GetNnet());
+      SetDropoutTestMode(true, &am_nnet.GetNnet());
+      CollapseModel(CollapseModelConfig(), &am_nnet.GetNnet());
+    }
 
     if (raw) {
       WriteKaldiObject(am_nnet.GetNnet(), nnet_wxfilename, binary_write);
